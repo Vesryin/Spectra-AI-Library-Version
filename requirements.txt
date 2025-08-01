@@ -1,0 +1,17 @@
+# Spectra AI - Dynamic Dependencies (Always Latest)
+# No version constraints - always install the newest versions
+
+# Core Flask Framework
+flask
+flask-cors
+
+# Environment & Configuration
+python-dotenv
+
+# AI Integration
+ollama
+
+# Optional Performance & Production Dependencies
+gunicorn
+uvicorn
+requests
