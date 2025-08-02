@@ -4,7 +4,7 @@ import { Message, ChatResponse } from '../types';
 // Dynamic API configuration
 const api = axios.create({
   baseURL: '/api',
-  timeout: 60000, // Increased timeout for AI responses
+  timeout: 120000, // Increased timeout to 2 minutes for AI responses
   headers: {
     'Content-Type': 'application/json',
   },
@@ -16,15 +16,18 @@ api.interceptors.response.use(
   (error) => {
     console.error('API Error:', error);
     if (error.code === 'ECONNABORTED') {
-      throw new Error('Request timeout - AI is taking too long to respond');
+      throw new Error('Spectra is thinking deeply about your message... Please wait a moment and try again 💜');
     }
     if (error.response?.status === 500) {
-      throw new Error('Server error - Please check backend logs');
+      throw new Error('Spectra is having a moment of technical difficulty. Please try again 💜');
     }
     if (error.response?.status === 404) {
-      throw new Error('API endpoint not found - Please restart backend');
+      throw new Error('Lost connection to Spectra. Please refresh the page 💜');
     }
-    throw error;
+    if (error.code === 'ECONNRESET' || error.message.includes('ECONNRESET')) {
+      throw new Error('Connection was reset while Spectra was responding. Please try again 💜');
+    }
+    throw new Error('Having trouble connecting to Spectra right now. Please try again 💜');
   }
 );
 

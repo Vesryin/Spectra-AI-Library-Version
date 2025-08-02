@@ -129,6 +129,8 @@ class SpectraAI:
     def generate_response(self, message, history=None):
         """Generate dynamic response using available model"""
         try:
+            logger.info(f"🔄 Starting response generation for: {message[:50]}...")
+            
             # Refresh model availability for each request
             current_models = self._get_available_models()
             if self.model not in current_models and current_models:
@@ -136,24 +138,37 @@ class SpectraAI:
                 self.model = self._select_best_model()
                 logger.info(f"🔄 Model changed: {old_model} → {self.model}")
             
-            # Build conversation context
-            conversation = [{"role": "system", "content": self.personality_prompt}]
+            # Build conversation context with simplified personality prompt
+            personality_summary = "You are Spectra, an emotionally intelligent AI assistant for Richie. You are empathetic, creative, supportive, and focus on music, healing, and emotional connection. Respond with warmth and genuine care. Use emojis naturally."
+            
+            conversation = [{"role": "system", "content": personality_summary}]
             
             if history:
-                for msg in history[-10:]:  # Keep last 10 messages for context
-                    conversation.append({
-                        "role": msg.get("role", "user"),
-                        "content": msg.get("content", "")
-                    })
+                for msg in history[-5:]:  # Reduced to last 5 messages to prevent token overflow
+                    if msg.get("content"):
+                        conversation.append({
+                            "role": msg.get("role", "user"),
+                            "content": msg.get("content", "")
+                        })
             
             conversation.append({"role": "user", "content": message})
             
-            # Generate response
+            logger.info(f"💭 Conversation context: {len(conversation)} messages")
+            
+            # Generate response with timeout handling
+            logger.info("🤖 Calling Ollama...")
             response = ollama.chat(
                 model=self.model,
                 messages=conversation,
-                stream=False
+                stream=False,
+                options={
+                    "temperature": 0.7,
+                    "top_p": 0.9,
+                    "num_predict": 512  # Limit response length
+                }
             )
+            
+            logger.info("✅ Response generated successfully")
             
             return {
                 "response": response['message']['content'],
@@ -188,6 +203,15 @@ def index():
             "/api/status": "GET - API status",
             "/api/chat": "POST - Chat with Spectra AI"
         }
+    })
+
+@app.route('/api/health')
+def health():
+    """Quick health check endpoint"""
+    return jsonify({
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "service": "Spectra AI"
     })
 
 @app.route('/api/status')
@@ -228,9 +252,10 @@ def chat():
         
         logger.info(f"💬 Chat request: {message[:50]}...")
         
-        # Generate response
+        # Generate response with basic error handling
         result = spectra.generate_response(message, history)
         
+        logger.info("✅ Response sent successfully")
         return jsonify(result)
         
     except Exception as e:

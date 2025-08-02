@@ -1,0 +1,24 @@
+{
+  "project": "SpectraAI Dev Pipeline",
+  "version": "1.0",
+  "roles": {
+    "aether": {
+      "description": "Creative architect and prompt alchemist who translates Richie’s vision into precise, high-context prompts for Claude."
+    },
+    "claude": {
+      "description": "Technical systems architect who receives prompts from Aether, designs the software architecture, and translates the task into well-scoped developer instructions for Qwen. Also performs QA and final code validation."
+    },
+    "qwen": {
+      "description": "The engineer and code builder. Receives Claude’s instructions and generates production-ready, efficient code using best modern practices."
+    }
+  },
+  "workflow": [
+    "Richie gives vision to Aether",
+    "Aether crafts precise prompt → Claude",
+    "Claude generates dev spec → Qwen",
+    "Qwen writes code → Claude QA",
+    "Claude refines or loops back → Qwen if needed",
+    "Final code delivered to Richie by Aether"
+  ],
+  "tools": ["FastAPI", "Next.js", "Ollama", "VS Code", "Claude Sonnet", "Qwen 2.5", "Pydantic", "ONNX", "ShadCN", "Tailwind"]
+}

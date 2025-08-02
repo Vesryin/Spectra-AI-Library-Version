@@ -1,0 +1,32 @@
+{
+  "task": {
+    "title": "Add image classification API endpoint",
+    "richie_vision": "I want an API route that lets users upload an image and returns top 3 predictions with confidence scores.",
+    "context": "Built on FastAPI backend. Will use a local ONNX model. Need async file handling.",
+    "stage": "initial"
+  },
+  "aether_prompt": {
+    "intent_clarified": "Build an async FastAPI POST endpoint `/predict-image` that accepts a file upload, runs it through an ONNX image classifier, and returns the top 3 class predictions with their confidence scores.",
+    "prompt_for_claude": "Write a FastAPI route called `/predict-image` that accepts image files. It should process the file using an ONNX image classifier, get top 3 predictions and return them as JSON. Use async handling and error checking."
+  },
+  "claude_spec": {
+    "system_design_notes": "Use FastAPI's `UploadFile`, load model once, cache it, run image through preprocessing pipeline, return top 3 results as `label` and `score`. Prepare route with docstrings and status codes.",
+    "prompt_for_qwen": "Generate an async FastAPI route `/predict-image` that loads an ONNX image classification model, accepts image files via POST, processes them, returns top 3 predictions with confidence in JSON."
+  },
+  "qwen_code": {
+    "language": "python",
+    "output": "# Qwen's generated code would go here"
+  },
+  "claude_review": {
+    "pass": false,
+    "issues": ["Missing model caching", "No input size normalization"],
+    "recommendations": "Refactor to include model caching and preprocessing using Pillow.",
+    "integration_plan": "Add to `/apps/api/routes/image.py`. Write a test in `test_image.py` using `httpx.AsyncClient`."
+  },
+  "aether_summary": {
+    "explanation": "This endpoint allows you to upload an image and get predictions using your local model. Still needs preprocessing and caching tweaks.",
+    "next_steps": ["Refactor per Claude's notes", "Test using a sample image", "Deploy once test passes"]
+  },
+  "round": 1,
+  "richie_feedback": ""
+}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, Heart, Sparkles, Music, Palette } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ChatMessage from './components/ChatMessage';
@@ -21,30 +21,16 @@ const App: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  useEffect(() => {
-    // Check connection status on load
-    checkConnection();
-    inputRef.current?.focus();
-  }, []);
-
-  const checkConnection = async () => {
+  const checkConnection = useCallback(async () => {
     try {
       await checkStatus();
       setIsConnected(true);
     } catch (error) {
       setIsConnected(false);
     }
-  };
+  }, []);
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = useCallback(async () => {
     if (!inputMessage.trim() || isTyping) return;
 
     const userMessage: Message = {
@@ -82,114 +68,147 @@ const App: React.FC = () => {
     } finally {
       setIsTyping(false);
     }
-  };
+  }, [inputMessage, isTyping, messages]);
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
+
+  useEffect(() => {
+    // Check connection status on load
+    checkConnection();
+    inputRef.current?.focus();
+  }, [checkConnection]);
+
+  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
-  };
+  }, [handleSendMessage]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-purple-100 px-6 py-4 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-display font-bold gradient-text">
-                Spectra AI
-              </h1>
-              <p className="text-sm text-gray-600">
-                Your emotionally intelligent companion
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex items-center space-x-4">
-            <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm ${
-              isConnected 
-                ? 'bg-green-100 text-green-700' 
-                : 'bg-red-100 text-red-700'
-            }`}>
-              <div className={`w-2 h-2 rounded-full ${
-                isConnected ? 'bg-green-500' : 'bg-red-500'
-              }`} />
-              <span>{isConnected ? 'Connected' : 'Offline'}</span>
+    <div className="min-h-screen bg-slate-950 text-white">
+      {/* Professional Header */}
+      <header className="bg-slate-900/95 backdrop-blur-xl border-b border-slate-800 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="relative">
+                <div className="w-12 h-12 bg-gradient-to-br from-violet-500 via-purple-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg">
+                  <Sparkles className="w-7 h-7 text-white" />
+                </div>
+                <div className="absolute -inset-1 bg-gradient-to-br from-violet-500 via-purple-500 to-indigo-500 rounded-xl blur opacity-25"></div>
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-violet-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
+                  Spectra AI
+                </h1>
+                <p className="text-slate-400 font-medium text-sm tracking-wide">
+                  Enterprise Emotional Intelligence Platform
+                </p>
+              </div>
             </div>
             
-            <div className="flex items-center space-x-2 text-purple-600">
-              <Music className="w-5 h-5" />
-              <Heart className="w-5 h-5" />
-              <Palette className="w-5 h-5" />
+            <div className="flex items-center space-x-6">
+              <div className={`flex items-center space-x-3 px-4 py-2 rounded-lg text-sm font-medium border ${
+                isConnected 
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                  : 'bg-red-500/10 text-red-400 border-red-500/20'
+              }`}>
+                <div className={`w-2.5 h-2.5 rounded-full ${
+                  isConnected ? 'bg-emerald-400 shadow-emerald-400/50 shadow-sm' : 'bg-red-400 shadow-red-400/50 shadow-sm'
+                }`} />
+                <span>{isConnected ? 'LIVE' : 'OFFLINE'}</span>
+              </div>
+              
+              <div className="flex items-center space-x-3">
+                <div className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors">
+                  <Music className="w-5 h-5 text-violet-400" />
+                </div>
+                <div className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors">
+                  <Heart className="w-5 h-5 text-rose-400" />
+                </div>
+                <div className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors">
+                  <Palette className="w-5 h-5 text-amber-400" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Chat Container */}
-      <main className="max-w-4xl mx-auto px-6 py-8">
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-purple-100 overflow-hidden">
-          {/* Messages */}
-          <div className="h-[600px] overflow-y-auto chat-scrollbar p-6 space-y-4">
-            <AnimatePresence>
-              {messages.map((message) => (
+      {/* Main Chat Interface */}
+      <main className="max-w-7xl mx-auto px-8 py-8">
+        <div className="bg-slate-900/50 backdrop-blur-xl rounded-2xl border border-slate-800 shadow-2xl overflow-hidden">
+          {/* Chat Messages Area */}
+          <div className="h-[700px] overflow-y-auto chat-scrollbar">
+            <div className="p-8 space-y-6">
+              <AnimatePresence>
+                {messages.map((message) => (
+                  <motion.div
+                    key={message.id}
+                    initial={{ opacity: 0, y: 20, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -20, scale: 0.98 }}
+                    transition={{ duration: 0.4, ease: "easeOut" }}
+                  >
+                    <ChatMessage message={message} />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+              
+              {isTyping && (
                 <motion.div
-                  key={message.id}
-                  initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -20, scale: 0.95 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
                 >
-                  <ChatMessage message={message} />
+                  <TypingIndicator />
                 </motion.div>
-              ))}
-            </AnimatePresence>
-            
-            {isTyping && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-              >
-                <TypingIndicator />
-              </motion.div>
-            )}
-            
-            <div ref={messagesEndRef} />
+              )}
+              
+              <div ref={messagesEndRef} />
+            </div>
           </div>
 
-          {/* Input Area */}
-          <div className="border-t border-purple-100 p-6 bg-gradient-to-r from-purple-50/50 to-indigo-50/50">
-            <div className="flex items-end space-x-4">
-              <div className="flex-1 relative">
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Share your thoughts with Spectra... 💜"
-                  className="w-full px-4 py-3 pr-12 bg-white border border-purple-200 rounded-xl focus:outline-none input-focus resize-none"
-                  disabled={isTyping}
-                />
+          {/* Professional Input Interface - FIXED LAYOUT */}
+          <div className="border-t border-slate-800 bg-slate-900/80 backdrop-blur-xl">
+            <div className="p-8">
+              <div className="flex items-end space-x-4">
+                <div className="flex-1">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Communicate with Spectra AI..."
+                    className="w-full px-6 py-4 bg-slate-800/50 border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500 transition-all duration-200 text-white placeholder-slate-400 text-lg"
+                    disabled={isTyping}
+                  />
+                </div>
                 
                 <button
                   onClick={handleSendMessage}
                   disabled={!inputMessage.trim() || isTyping}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg hover:from-purple-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 spectra-glow"
+                  aria-label={isTyping ? "Processing..." : "Send message"}
+                  className="flex-shrink-0 p-4 bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-xl hover:from-violet-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-violet-500/25"
                 >
-                  <Send className="w-4 h-4" />
+                  <Send className="w-6 h-6" />
                 </button>
               </div>
-            </div>
-            
-            <div className="mt-2 text-xs text-gray-500 text-center">
-              Spectra is designed to help with creativity, music, and emotional support 🎵
+              
+              <div className="mt-4 text-center">
+                <p className="text-slate-500 text-sm font-medium">
+                  Advanced AI • Emotional Intelligence • Creative Collaboration
+                </p>
+              </div>
             </div>
           </div>
         </div>

@@ -11,13 +11,14 @@
     "update": "npm update && npm audit fix"
   },
   "dependencies": {
-    "react": "*",
-    "react-dom": "*",
-    "lucide-react": "*",
+    "axios": "*",
     "framer-motion": "*",
-    "axios": "*"
+    "lucide-react": "*",
+    "react": "*",
+    "react-dom": "*"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.11",
     "@types/react": "*",
     "@types/react-dom": "*",
     "@typescript-eslint/eslint-plugin": "*",

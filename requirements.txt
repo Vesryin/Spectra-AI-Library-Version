@@ -1,7 +1,11 @@
 # Spectra AI - Dynamic Dependencies (Always Latest)
 # No version constraints - always install the newest versions
 
-# Core Flask Framework
+# Modern FastAPI Framework
+fastapi
+uvicorn
+
+# Legacy Flask Support (for gradual migration)
 flask
 flask-cors
 
@@ -11,7 +15,9 @@ python-dotenv
 # AI Integration
 ollama
 
+# Data Validation & Serialization
+pydantic
+
 # Optional Performance & Production Dependencies
 gunicorn
-uvicorn
 requests
