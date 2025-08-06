@@ -4,6 +4,9 @@
 
 Spectra is an emotionally intelligent AI assistant designed to help with expression through music, conversation, healing, and creativity. Built specifically for Richie (Richard Jacob Olejniczak), Spectra provides a deeply personal and empathetic AI companion experience.
 
+Here's a PDF setup guide as well. 
+https://drive.google.com/file/d/1dWWR8l-LcfpB5ljmEDokUWmQIpomlP3R/view?usp=drivesdk
+
 ## 🚀 Quick Start
 
 ### Prerequisites
