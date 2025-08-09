@@ -74,3 +74,4 @@ yarn-error.log*
 # Build outputs
 frontend/dist/
 frontend/build/
+.vercel

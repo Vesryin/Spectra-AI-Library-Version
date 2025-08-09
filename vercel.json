@@ -17,10 +17,5 @@
   ],
   "env": {
     "PYTHON_VERSION": "3.12"
-  },
-  "functions": {
-    "main.py": {
-      "maxDuration": 60
-    }
   }
 }
