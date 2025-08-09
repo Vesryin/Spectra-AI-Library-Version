@@ -598,3 +598,6 @@ if __name__ == '__main__':
         reload=os.getenv('ENVIRONMENT') == 'development',
         log_level="info"
     )
+
+# For Vercel deployment
+handler = app
