@@ -1,44 +1,16 @@
-# Spectra AI - Dynamic Dependencies (Always Latest)
-# No version constraints - always install the newest versions
-
-# Modern FastAPI Framework
 fastapi
 uvicorn[standard]
-
-# Legacy Flask Support (for gradual migration)
-flask
-flask-cors
-
-# Environment & Configuration
 python-dotenv
-
-# AI Integration
 ollama
-
-# Data Validation & Serialization
 pydantic
-
-# Optional Performance & Production Dependencies
 gunicorn
 requests
 python-multipart
-
-# Production extras
 prometheus-client
 structlog
-
-# Development & Testing (optional)
 pytest
 pytest-asyncio
 httpx
-
-# Security & Performance
-cryptography
-aiofiles
-
-# Database Support (if needed later)
-sqlalchemy
-alembic
-
-# Caching (if needed later)
-redis
+# External providers
+openai
+anthropic

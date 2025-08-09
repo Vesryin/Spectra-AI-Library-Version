@@ -1,13 +1,10 @@
-version: '3.9'
-
 services:
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped
-    ports:
-      - "11434:11434"
     volumes:
       - ollama_models:/root/.ollama
+
   spectra-api:
     build: .
     depends_on:
@@ -20,6 +17,7 @@ services:
       SPECTRA_LOG_LEVEL: INFO
       ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
       OLLAMA_MODEL: openhermes:7b-mistral-v2.5-q4_K_M
+      OLLAMA_HOST: http://ollama:11434
     ports:
       - "8000:8000"
     restart: unless-stopped
