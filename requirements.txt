@@ -1,16 +1,15 @@
+# Core FastAPI and server
 fastapi
 uvicorn[standard]
-python-dotenv
-ollama
 pydantic
-gunicorn
-requests
-python-multipart
-prometheus-client
+
+# Configuration and logging
+python-dotenv
 structlog
+
+# AI Models
+ollama
+
+# Testing (only if needed)
 pytest
 pytest-asyncio
-httpx
-# External providers
-openai
-anthropic
