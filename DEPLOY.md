@@ -41,7 +41,7 @@
 ## 🔗 URLs After Deployment
 
 - **Railway**: `https://spectra-ai-library-version-production.up.railway.app`
-- **Vercel**: `https://spectraai-vercel-iarl8chm6-vesryins-projects.vercel.app'
+- **Vercel**: `https://spectraai-vercel.vercel.app/ '
 
 ## 🎯 Test Your Deployment
 
