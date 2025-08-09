@@ -26,7 +26,7 @@ class SpectraAI:
     
     def __init__(self):
         # Dynamic model selection and auto-fallback
-        self.preferred_model = os.getenv('OLLAMA_MODEL', 'openhermes:7b-mistral-v2.5-q4_K_M')
+    self.preferred_model = os.getenv('OLLAMA_MODEL', 'openhermes:7b-mistral-v2.5-q4_K_M')
         self.available_models = self._get_available_models()
         self.model = self._select_best_model()
         self.personality_prompt = self._load_personality()
@@ -77,31 +77,33 @@ class SpectraAI:
             return []
     
     def _select_best_model(self):
-        """Auto-select best available model with smart fallback"""
+        """Auto-select best available model with shorthand & lightweight preference"""
         if not self.available_models:
             logger.error("⚠️ No Ollama models available!")
             return self.preferred_model
-            
-        # Check if preferred model is available
         if self.preferred_model in self.available_models:
             return self.preferred_model
-            
-        # Smart fallback order
-        fallback_order = [
-            'openhermes:7b-mistral-v2.5-q4_K_M',
-            'openhermes2.5-mistral', 
-            'openhermes:latest',
+        shorthand_matches = [m for m in self.available_models if m.startswith(self.preferred_model + ':')]
+        if shorthand_matches:
+            chosen = sorted(shorthand_matches)[0]
+            logger.info(f"✨ Resolved shorthand '{self.preferred_model}' to '{chosen}'")
+            return chosen
+        ordered_candidates = [
+            'phi:latest',
+            'phi2:latest',
+            'qwen2:0.5b',
+            'llama3.2:1b',
             'mistral:7b',
+            'openhermes:7b-mistral-v2.5-q4_K_M',
+            'openhermes2.5-mistral',
+            'openhermes:latest',
             'mistral:latest',
             'llama2:latest'
         ]
-        
-        for model in fallback_order:
-            if model in self.available_models:
-                logger.warning(f"🔄 Using fallback model: {model}")
-                return model
-        
-        # Last resort - use first available
+        for m in ordered_candidates:
+            if m in self.available_models:
+                logger.warning(f"🔄 Using fallback model: {m}")
+                return m
         selected = self.available_models[0]
         logger.warning(f"🆘 Using first available model: {selected}")
         return selected

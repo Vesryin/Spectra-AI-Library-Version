@@ -4,10 +4,10 @@
 
 Spectra is an emotionally intelligent AI assistant designed to help with expression through music, conversation, healing, and creativity. Built specifically for Richie (Richard Jacob Olejniczak), Spectra provides a deeply personal and empathetic AI companion experience.
 
-Here's a PDF setup guide as well. 
+Here's a PDF setup guide as well.
 https://drive.google.com/file/d/1dWWR8l-LcfpB5ljmEDokUWmQIpomlP3R/view?usp=drivesdk
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Spectra AI v2)
 
 ### Prerequisites
 
@@ -28,6 +28,18 @@ setup.bat
 ```bash
 chmod +x setup.sh
 ./setup.sh
+```
+
+After setup you can launch everything with:
+
+```bash
+./start.sh   # Starts Ollama (if not running), FastAPI backend, and React frontend
+```
+
+Stop services:
+
+```bash
+./stop.sh
 ```
 
 ### Manual Setup
@@ -64,7 +76,7 @@ chmod +x setup.sh
    cp .env.example .env    # Linux/Mac
    ```
 
-### Running Spectra
+### Running Spectra (v2 Dynamic Model Switching)
 
 **Option 1: Using batch files (Windows)**
 
@@ -79,7 +91,7 @@ chmod +x setup.sh
 ollama serve
 
 # Terminal 2 - Backend
-python app.py
+python main.py  # (FastAPI recommended) or python app.py (legacy Flask)
 
 # Terminal 3 - Frontend
 cd frontend
@@ -87,6 +99,31 @@ npm run dev
 ```
 
 **Then open:** `http://localhost:3000`
+
+### What’s New in v2
+- FastAPI primary backend (Flask legacy still present)
+- Dynamic lightweight model fallback & context-based auto model selection
+- Endpoints: /api/models, /api/models/select
+- Auto-switch toggle via env var SPECTRA_AUTO_MODEL=true|false
+- Smaller test model support (qwen2:0.5b) for low-memory environments
+
+### Tabnine Integration (AI Code Completion)
+
+This project is pre-configured to recommend the Tabnine extension for enhanced AI code completion.
+
+1. Open the workspace in VS Code.
+2. Accept the prompt to install recommended extensions (Tabnine, Python, ESLint, Prettier, etc.).
+3. Sign into Tabnine if you have a Pro account (optional) for improved completions.
+
+Settings applied in `.vscode/settings.json`:
+
+- Enables inline suggestions & experimental auto-imports.
+- Organizes imports on save.
+- Formats on save (Prettier for TS/React, Black for Python if installed).
+
+You can further adjust Tabnine behavior in VS Code Settings under Extensions > Tabnine.
+
+If you prefer not to use Tabnine, simply ignore or remove the extension recommendation from `.vscode/extensions.json`.
 
 ### Stopping Spectra
 
