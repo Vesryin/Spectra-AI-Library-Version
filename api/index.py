@@ -165,7 +165,7 @@ try:
         )
     
     # Export the app for Vercel
-    handler = app
+    # Vercel expects either 'app' or 'handler' variable
     
     logger.info("Vercel handler initialized successfully", providers=list(providers_available.keys()))
 
