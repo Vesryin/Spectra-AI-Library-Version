@@ -1,82 +1,108 @@
 @echo off
-title Spectra AI - Modern Production Startup
+setlocal enabledelayedexpansion
 
-echo 🌟 SPECTRA AI - MODERN PRODUCTION STARTUP
+echo.
 echo ============================================
-echo FastAPI + React + Ollama
+echo    🚀 Spectra AI Production Startup
+echo ============================================
 echo.
 
-echo 🔍 System Check...
-echo.
+REM Set color to green for startup
+color 0A
 
-REM Check all prerequisites
+REM Check if we're using FastAPI or Flask
+if exist "main.py" (
+    set "backend_cmd=python main.py"
+    set "backend_name=FastAPI Backend"
+) else (
+    set "backend_cmd=python app.py"
+    set "backend_name=Flask Backend (Legacy)"
+)
+
+REM Initialize variables
 set "all_good=true"
 
-REM Check Python
+echo 🔍 Checking prerequisites...
+echo.
+
+REM Check Python installation
 python --version >nul 2>&1
 if errorlevel 1 (
     echo ❌ Python not installed
     set "all_good=false"
 ) else (
-    echo ✅ Python installed
+    for /f "tokens=2" %%i in ('python --version 2^>^&1') do set "python_version=%%i"
+    echo ✅ Python !python_version! found
 )
 
-REM Check Node.js
-where node >nul 2>&1
+REM Check Node.js installation
+node --version >nul 2>&1
 if errorlevel 1 (
     echo ❌ Node.js not installed
     set "all_good=false"
 ) else (
-    echo ✅ Node.js installed
+    for /f %%i in ('node --version') do set "node_version=%%i"
+    echo ✅ Node.js !node_version! found
 )
 
-REM Check Ollama
-where ollama >nul 2>&1
+REM Check Ollama installation
+ollama --version >nul 2>&1
 if errorlevel 1 (
     echo ❌ Ollama not installed
     set "all_good=false"
 ) else (
-    echo ✅ Ollama installed
+    echo ✅ Ollama found
 )
 
 if "%all_good%"=="false" (
     echo.
-    echo ❌ Missing prerequisites! Please install:
-    echo   - Python 3.8+ from python.org
-    echo   - Node.js 16+ from nodejs.org  
-    echo   - Ollama from ollama.ai
+    echo ❌ Missing prerequisites! Please run setup.bat first
     pause
     exit /b 1
 )
 
 echo.
-echo 🚀 Starting all services with modern architecture...
+echo ✅ All prerequisites satisfied!
 echo.
 
-echo 1️⃣ Starting Ollama service...
-start "Ollama" cmd /c "ollama serve"
-timeout /t 5 >nul
+REM Check if virtual environment exists and activate it
+if exist "venv\Scripts\activate.bat" (
+    echo 📦 Activating virtual environment...
+    call venv\Scripts\activate.bat
+)
 
-echo 2️⃣ Starting FastAPI Backend...
-start "FastAPI Backend" cmd /c "cd /d "%~dp0" && C:/Users/PAC/Spectra-AI-Library-Version/.venv/Scripts/python.exe main.py"
-timeout /t 5 >nul
+echo 🚀 Starting services...
+echo.
 
-echo 3️⃣ Starting React Frontend...
-start "React Frontend" cmd /c "cd /d "%~dp0\frontend" && npm run dev"
-timeout /t 3 >nul
+REM Start Ollama service first
+echo 🤖 Starting Ollama AI service...
+start "Ollama Service" cmd /c "ollama serve"
+timeout /t 5 /nobreak >nul
+
+REM Start backend
+echo 🐍 Starting %backend_name%...
+start "Spectra Backend" cmd /c "%backend_cmd%"
+timeout /t 5 /nobreak >nul
+
+REM Start frontend
+echo 📱 Starting frontend...
+if exist "frontend\package.json" (
+    cd frontend
+    start "Spectra Frontend" cmd /c "npm run dev"
+    cd ..
+) else (
+    echo ⚠️  Frontend not found
+)
 
 echo.
-echo ✅ All services starting up!
+echo ============================================
+echo    🎉 Spectra AI Started Successfully!
+echo ============================================
 echo.
-echo 🌐 Spectra AI will be available at:
-echo   🤖 Ollama:        http://localhost:11434
-echo   ⚡ FastAPI:       http://localhost:5000  
-echo   📚 API Docs:      http://localhost:5000/docs
-echo   ⚛️ React App:     http://localhost:3000
+echo 🌐 Frontend: http://localhost:3000
+echo 🔧 Backend:  http://localhost:8000 (FastAPI) or :5000 (Flask)
+echo 🤖 Ollama:   http://localhost:11434
+echo 📚 API Docs: http://localhost:8000/docs
 echo.
-echo 💜 Spectra AI is ready for emotionally intelligent conversations!
-echo    - Modern FastAPI backend with async support
-echo    - Updated React frontend with latest dependencies  
-echo    - Real-time AI integration with Ollama
-echo.
-pause
+echo Press any key to exit (services will continue running)...
+pause >nul

@@ -3,7 +3,7 @@
 
 # Modern FastAPI Framework
 fastapi
-uvicorn
+uvicorn[standard]
 
 # Legacy Flask Support (for gradual migration)
 flask
@@ -21,3 +21,24 @@ pydantic
 # Optional Performance & Production Dependencies
 gunicorn
 requests
+python-multipart
+
+# Production extras
+prometheus-client
+structlog
+
+# Development & Testing (optional)
+pytest
+pytest-asyncio
+httpx
+
+# Security & Performance
+cryptography
+aiofiles
+
+# Database Support (if needed later)
+sqlalchemy
+alembic
+
+# Caching (if needed later)
+redis

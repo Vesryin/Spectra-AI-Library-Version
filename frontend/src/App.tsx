@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Heart, Sparkles, Music, Palette } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Heart, Music, Palette, Send, Sparkles } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { checkStatus, fetchMetrics, fetchModels, fetchPersonalityHash, selectModel, sendMessage, toggleAutoModel } from './api/chat';
 import ChatMessage from './components/ChatMessage';
 import TypingIndicator from './components/TypingIndicator';
-import { Message } from './types';
-import { sendMessage, checkStatus } from './api/chat';
+import { Message, MetricsResponse, ModelListResponse } from './types';
 
 const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
@@ -18,6 +18,10 @@ const App: React.FC = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [models, setModels] = useState<ModelListResponse | null>(null);
+  const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
+  const [personalityHash, setPersonalityHash] = useState<string>('');
+  const [showMetrics, setShowMetrics] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -25,6 +29,15 @@ const App: React.FC = () => {
     try {
       await checkStatus();
       setIsConnected(true);
+      // Load supplemental data concurrently
+      const [mdl, met, hash] = await Promise.all([
+        fetchModels().catch(() => null),
+        fetchMetrics().catch(() => null),
+        fetchPersonalityHash().catch(() => ({ personality_hash: '' }))
+      ]);
+      if (mdl) setModels(mdl);
+      if (met) setMetrics(met);
+      if (hash && 'personality_hash' in hash) setPersonalityHash(hash.personality_hash);
     } catch (error) {
       setIsConnected(false);
     }
@@ -69,6 +82,29 @@ const App: React.FC = () => {
       setIsTyping(false);
     }
   }, [inputMessage, isTyping, messages]);
+
+  // Model change
+  const handleModelChange = useCallback(async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    try {
+      await selectModel(value);
+      const mdl = await fetchModels();
+      setModels(mdl);
+      const met = await fetchMetrics();
+      setMetrics(met);
+    } catch (err) {
+      console.error('Model switch failed', err);
+    }
+  }, []);
+
+  const handleToggleAutoModel = useCallback(async () => {
+    try {
+      const next = await toggleAutoModel();
+      setMetrics(prev => prev ? { ...prev, auto_model_enabled: next.auto_model_enabled } : prev);
+    } catch (err) {
+      console.error('Toggle auto model failed', err);
+    }
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -115,6 +151,34 @@ const App: React.FC = () => {
             </div>
             
             <div className="flex items-center space-x-6">
+              {/* Model Selector */}
+              <div className="hidden md:flex items-center space-x-3">
+                {models && (
+                  <select
+                    value={models.current}
+                    onChange={handleModelChange}
+                    className="bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                  >
+                    {models.available.map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                )}
+                {metrics && (
+                  <button
+                    onClick={handleToggleAutoModel}
+                    className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${metrics.auto_model_enabled ? 'bg-violet-500/20 border-violet-500/40 text-violet-300' : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'}`}
+                  >
+                    {metrics.auto_model_enabled ? 'Auto ON' : 'Auto OFF'}
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowMetrics(s => !s)}
+                  className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs border border-slate-600"
+                >
+                  {showMetrics ? 'Hide Stats' : 'Stats'}
+                </button>
+              </div>
               <div className={`flex items-center space-x-3 px-4 py-2 rounded-lg text-sm font-medium border ${
                 isConnected 
                   ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
@@ -145,6 +209,26 @@ const App: React.FC = () => {
       {/* Main Chat Interface */}
       <main className="max-w-7xl mx-auto px-8 py-8">
         <div className="bg-slate-900/50 backdrop-blur-xl rounded-2xl border border-slate-800 shadow-2xl overflow-hidden">
+          {showMetrics && metrics && (
+            <div className="border-b border-slate-800 bg-slate-900/70 px-6 py-4 text-xs grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <div className="text-slate-400">Active Model</div>
+                <div className="text-slate-200 font-medium break-all">{metrics.active_model}</div>
+              </div>
+              <div>
+                <div className="text-slate-400">Failed Models</div>
+                <div className="text-slate-200 font-medium">{metrics.failed_models.length ? metrics.failed_models.join(', ') : 'None'}</div>
+              </div>
+              <div>
+                <div className="text-slate-400">Auto Mode</div>
+                <div className="text-slate-200 font-medium">{metrics.auto_model_enabled ? 'Enabled' : 'Disabled'}</div>
+              </div>
+              <div>
+                <div className="text-slate-400">Personality Hash</div>
+                <div className="text-slate-200 font-medium truncate" title={personalityHash}>{personalityHash || '...'}</div>
+              </div>
+            </div>
+          )}
           {/* Chat Messages Area */}
           <div className="h-[700px] overflow-y-auto chat-scrollbar">
             <div className="p-8 space-y-6">

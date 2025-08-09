@@ -1,68 +1,82 @@
-"""
-Spectra AI - Modern FastAPI Backend
-Production-ready with async support, type hints, and comprehensive error handling
-"""
+"""FastAPI backend for Spectra AI.
 
+Key protocol (enforced in code):
+ - No static training data usage.
+ - No long-lived cached model knowledge; model list & personality can reload.
+ - Personality prompt hot-reloads on file change.
+ - All runtime state is ephemeral and recomputed when needed.
+"""
+import asyncio
+import hashlib
 import os
-import logging
-from datetime import datetime
-from typing import Optional, List, Dict, Any
+import time
+from datetime import datetime, timezone  # updated to include timezone
 from pathlib import Path
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from fastapi import FastAPI, HTTPException, Request, status
+import ollama
+import structlog
+import uvicorn
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, ValidationError
-from dotenv import load_dotenv
-import ollama
+from pydantic import BaseModel, Field
 
-# Load environment variables
-load_dotenv()
+if TYPE_CHECKING:
+    from typing import Any as _Any
+    structlog: _Any
 
 # Configure structured logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-# FastAPI app with metadata
-app = FastAPI(
-    title="Spectra AI API",
-    description="Emotionally intelligent AI assistant backend",
-    version="2.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
-)
-
-# CORS configuration for frontend integration
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000", 
-        "http://127.0.0.1:3000",
-        "http://localhost:3001", 
-        "http://127.0.0.1:3001"
+LOG_FORMAT = os.getenv('SPECTRA_LOG_FORMAT', 'json')
+structlog.configure(
+    processors=[
+        structlog.stdlib.filter_by_level,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.processors.UnicodeDecoder(),
+        structlog.processors.JSONRenderer() if LOG_FORMAT == 'json' 
+        else structlog.dev.ConsoleRenderer()
     ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    context_class=dict,
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    wrapper_class=structlog.stdlib.BoundLogger,
+    cache_logger_on_first_use=True,
 )
 
-# Pydantic models for request/response validation
+logger = structlog.get_logger()
+
+# Pydantic models
 class ChatMessage(BaseModel):
-    role: str = Field(..., description="Message role: 'user' or 'assistant'")
-    content: str = Field(..., description="Message content")
+    role: str = Field(..., pattern="^(user|assistant|system)$")
+    content: str = Field(..., min_length=1)
+    timestamp: Optional[str] = None
 
 class ChatRequest(BaseModel):
-    message: str = Field(..., min_length=1, max_length=10000, description="User message")
-    history: List[ChatMessage] = Field(default=[], description="Conversation history")
+    message: str = Field(..., min_length=1, max_length=8192)
+    # max_items deprecated in Pydantic v2; use max_length instead
+    history: Optional[List[ChatMessage]] = Field(default_factory=list, max_length=50)
 
 class ChatResponse(BaseModel):
-    response: str = Field(..., description="AI response")
-    model_used: str = Field(..., description="Model that generated the response")
-    status: str = Field(..., description="Response status")
-    timestamp: str = Field(..., description="Response timestamp")
+    response: str
+    model: str
+    model_used: str  # backward compatible duplicate of 'model'
+    timestamp: str
+    processing_time: float
+
+    @classmethod
+    def build(cls, *, response: str, model: str, processing_time: float) -> "ChatResponse":
+        """Factory ensuring UTC timestamp and model_used duplication."""
+        return cls(
+            response=response,
+            model=model,
+            model_used=model,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            processing_time=processing_time,
+        )
 
 class StatusResponse(BaseModel):
     status: str
@@ -81,7 +95,7 @@ class ModelListResponse(BaseModel):
     timestamp: str
 
 class ModelSelectRequest(BaseModel):
-    model: str = Field(..., description="Exact model name or shorthand (e.g., 'phi')")
+    model: str
 
 class ModelSelectResponse(BaseModel):
     status: str
@@ -91,316 +105,357 @@ class ModelSelectResponse(BaseModel):
     message: str
     timestamp: str
 
+class ToggleAutoModelRequest(BaseModel):
+    enabled: Optional[bool] = None
+
 class SpectraAI:
-    """Modern SpectraAI class with comprehensive error handling and type hints"""
-    
-    def __init__(self):
-        """Initialize model preferences and personality."""
-        # Allow shorthand like 'phi' to match 'phi:latest'
-        self.preferred_model: str = os.getenv('OLLAMA_MODEL', 'openhermes:7b-mistral-v2.5-q4_K_M')
-        self.available_models: List[str] = self._get_available_models()
-        self.model: str = self._select_best_model()
-        self.personality_prompt: str = self._load_personality()
-
-        logger.info(f"🌟 Spectra AI initialized with model: {self.model}")
-        # Track models that failed due to resource limits to avoid repeat attempts
-        self.failed_models: set[str] = set()
-        self.auto_model_enabled: bool = os.getenv('SPECTRA_AUTO_MODEL', 'true').lower() in ('1','true','yes','on')
-
-    # -------------------- Dynamic / Contextual Model Logic --------------------
-    def _normalize_model_name(self, name: str) -> Optional[str]:
-        """Return the exact available model name matching a shorthand or exact name, else None."""
-        if not self.available_models:
-            return None
-        if name in self.available_models:
-            return name
-        # Shorthand resolution
-        matches = [m for m in self.available_models if m.startswith(name + ':') or m.startswith(name)]
-        return sorted(matches)[0] if matches else None
-
-    def _ranked_models(self, preference: str) -> List[str]:
-        """Return ordered list of candidate models based on preference ('creative'|'concise').
-        Filters out models previously marked as failed for memory/resource reasons.
-        Order from most capable to least for creative, reversed for concise.
-        """
-        # Capability order (approximate: larger / more tuned earlier)
-        capability_order = [
-            'openhermes:7b-mistral-v2.5-q4_K_M',
-            'mistral:7b',
-            'phi:latest',
-            'qwen2:0.5b'
-        ]
-        # Keep only those actually available (normalized)
-        normalized_available = {m: self._normalize_model_name(m) for m in capability_order}
-        # Replace with actual names if available
-        ordered = [normalized_available[m] for m in capability_order if normalized_available[m]]
-        # Remove failed models
-        ordered = [m for m in ordered if m not in self.failed_models]
-        if preference == 'concise':
-            # For concise / quick tasks prefer smallest first
-            ordered = list(reversed(ordered))
-        return ordered or [self.model]
-
-    def _classify_intent(self, message: str) -> str:
-        """Classify message into a simple intent guiding model size."""
-        text = message.lower()
-        creative_keywords = [
-            'story','poem','lyrics','song','script','analyze','analysis','explain','refactor','improve','creative','narrative','write','compose'
-        ]
-        if any(k in text for k in creative_keywords) or len(message) > 240:
-            return 'creative'
-        return 'concise'
-
-    def _choose_context_model(self, message: str) -> str:
-        """Determine best model for this message (does NOT permanently change self.model)."""
-        if not self.auto_model_enabled:
-            return self.model
-        preference = self._classify_intent(message)
-        candidates = self._ranked_models('creative' if preference=='creative' else 'concise')
-        # Return first candidate; fallback handled in retry logic
-        chosen = candidates[0]
-        if chosen != self.model:
-            logger.info(f"🧠 Contextual selection ({preference}) -> {chosen}")
-        return chosen
+    def __init__(self) -> None:
+        """Initialize with performance optimizations."""
+        # Environment configuration
+        self.ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
+        self.ollama_timeout = int(os.getenv('OLLAMA_TIMEOUT', '30'))
+        self.model_cache_ttl = int(os.getenv('MODEL_CACHE_TTL', '300'))
+        self.personality_check_interval = int(os.getenv('PERSONALITY_CHECK_INTERVAL', '5'))
         
+        # Model management
+        self.preferred_model = os.getenv('OLLAMA_MODEL', 'openhermes:7b-mistral-v2.5-q4_K_M')
+        self._model_cache: Optional[List[str]] = None
+        self._model_cache_time: Optional[float] = None
+        self.available_models = self._get_available_models()
+        self.model = self._select_best_model()
+        
+        # Personality management
+        self._personality_path = Path(__file__).parent / 'spectra_prompt.md'
+        self._personality_mtime: Optional[float] = None
+        self._last_personality_check: Optional[float] = None
+        self.personality_prompt = self._load_personality()
+        self.personality_hash = self._hash_personality(self.personality_prompt)
+        
+        # Runtime state
+        self.failed_models: set[str] = set()
+        self.auto_model_enabled = os.getenv('SPECTRA_AUTO_MODEL', 'true').lower() in ('1', 'true', 'yes', 'on')
+        self.request_count = 0
+        self.total_processing_time = 0.0
+        
+        logger.info(
+            "spectra_initialized",
+            model=self.model,
+            available_models=len(self.available_models),
+            auto_model=self.auto_model_enabled,
+            cache_ttl=self.model_cache_ttl
+        )
+
     def _get_available_models(self) -> List[str]:
-        """Dynamically get available Ollama models with robust error handling"""
+        """Get available models with caching."""
+        current_time = time.time()
+        
+        # Return cached models if valid
+        if (self._model_cache and self._model_cache_time and 
+            current_time - self._model_cache_time < self.model_cache_ttl):
+            return self._model_cache
+        
         try:
-            response = ollama.list()
+            client = ollama.Client(host=self.ollama_host, timeout=self.ollama_timeout)
+            response = client.list()
+            
             models = []
+            for model in response.get('models', []):
+                if isinstance(model, dict):
+                    name = model.get('name') or model.get('model')
+                    if name:
+                        models.append(name)
             
-            if 'models' in response:
-                for model in response['models']:
-                    if hasattr(model, 'model'):
-                        models.append(model.model)
-                    elif isinstance(model, dict) and 'name' in model:
-                        models.append(model['name'])
-                    elif isinstance(model, dict) and 'model' in model:
-                        models.append(model['model'])
+            # Update cache
+            self._model_cache = models
+            self._model_cache_time = current_time
             
-            logger.info(f"📋 Available models: {models}")
+            logger.debug("models_refreshed", count=len(models))
             return models
             
         except Exception as e:
-            logger.error(f"❌ Failed to get models: {e}")
-            return []
-    
+            logger.warning("model_fetch_failed", error=str(e))
+            return self._model_cache or []
+
+    def _normalize(self, name: str) -> Optional[str]:
+        """Normalize model name with fuzzy matching."""
+        if not name or not self.available_models:
+            return None
+            
+        name_lower = name.lower()
+        
+        # Exact match
+        for model in self.available_models:
+            if model.lower() == name_lower:
+                return model
+        
+        # Partial match
+        matches = [m for m in self.available_models if name_lower in m.lower()]
+        return matches[0] if matches else None
+
     def _select_best_model(self) -> str:
-        """Auto-select best available model with smart fallback and shorthand matching"""
+        """Select best available model with fallback strategy."""
         if not self.available_models:
-            logger.error("⚠️ No Ollama models available!")
+            logger.warning("no_models_available")
             return self.preferred_model
-
-        # Exact match first
-        if self.preferred_model in self.available_models:
-            return self.preferred_model
-
-        # Try shorthand (e.g., 'phi' -> 'phi:latest')
-        shorthand_matches = [m for m in self.available_models if m.startswith(self.preferred_model + ':')]
-        if shorthand_matches:
-            chosen = sorted(shorthand_matches)[0]
-            logger.info(f"✨ Resolved shorthand '{self.preferred_model}' to '{chosen}'")
-            return chosen
-
-        # Memory-aware ordering: prefer smallest parameter size when low memory
-        ordered_candidates = [
-            'phi:latest',
-            'phi2:latest',
-            'qwen2:0.5b',
-            'llama3.2:1b',
-            'mistral:7b',
-            'openhermes:7b-mistral-v2.5-q4_K_M',
-            'openhermes2.5-mistral',
-            'openhermes:latest',
-            'mistral:latest',
-            'llama2:latest'
-        ]
-        for cand in ordered_candidates:
-            if cand in self.available_models:
-                logger.warning(f"🔄 Using fallback model: {cand}")
-                return cand
-
-        # Last resort - first available
-        selected = self.available_models[0]
-        logger.warning(f"🆘 Using first available model: {selected}")
-        return selected
+        
+        # Try preferred model
+        normalized = self._normalize(self.preferred_model)
+        if normalized and normalized not in self.failed_models:
+            return normalized
+        
+        # Fallback to first available non-failed model
+        for model in self.available_models:
+            if model not in self.failed_models:
+                return model
+        
+        # Last resort
+        return self.available_models[0]
 
     def refresh_models(self) -> None:
-        """Refresh available models list (e.g., after pulling/removing)."""
+        """Force refresh of model cache."""
+        self._model_cache = None
+        self._model_cache_time = None
         self.available_models = self._get_available_models()
+        
+        if self.model not in self.available_models:
+            self.model = self._select_best_model()
 
     def set_model(self, desired: str) -> str:
-        """Attempt to set active model; supports shorthand.
-
-        Returns the model actually set (may be resolved or fallback).
-        """
-        self.refresh_models()
-        previous = self.model
-
-        # Exact
-        if desired in self.available_models:
-            self.model = desired
-        else:
-            # Shorthand
-            shorthand = [m for m in self.available_models if m.startswith(desired + ':')]
-            if shorthand:
-                self.model = sorted(shorthand)[0]
-                logger.info(f"✨ Shorthand '{desired}' resolved to '{self.model}'")
-            else:
-                logger.warning(f"⚠️ Requested model '{desired}' not found; keeping '{self.model}'")
-        if previous != self.model:
-            logger.info(f"🔁 Model changed: {previous} → {self.model}")
+        """Set active model with validation."""
+        resolved = self._normalize(desired)
+        if resolved:
+            self.model = resolved
+            logger.info("model_changed", from_model=self.model, to_model=resolved)
         return self.model
-    
+
     def _load_personality(self) -> str:
-        """Load Spectra's personality from file with fallback"""
+        """Load personality prompt from file."""
         try:
-            personality_file = Path(__file__).parent / 'spectra_prompt.md'
-            with open(personality_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-                logger.info("✅ Personality prompt loaded from file")
-                return content
-        except FileNotFoundError:
-            logger.warning("⚠️ Personality file not found, using default")
-            return self._get_default_personality()
+            if self._personality_path.exists():
+                content = self._personality_path.read_text(encoding='utf-8')
+                self._personality_mtime = self._personality_path.stat().st_mtime
+                return content.strip()
         except Exception as e:
-            logger.error(f"❌ Error loading personality: {e}")
-            return self._get_default_personality()
-    
-    def _get_default_personality(self) -> str:
-        """Fallback personality if file not found"""
-        return """You are Spectra, an emotionally intelligent AI assistant designed for Richie. 
-        You are deeply empathetic, creative, and focused on music, healing, and emotional support. 
-        Respond with warmth, understanding, and genuine care. Use emojis naturally and maintain a supportive, 
-        human-like conversational style."""
-    
-    async def generate_response(self, message: str, history: Optional[List[ChatMessage]] = None) -> Dict[str, Any]:
-        """Generate dynamic response using available model with async support"""
+            logger.warning("personality_load_failed", error=str(e))
+        
+        return "You are Spectra AI, an emotionally intelligent assistant."
+
+    def _maybe_reload_personality(self) -> None:
+        """Reload personality with rate limiting."""
+        current_time = time.time()
+        
+        # Rate limit checks
+        if (self._last_personality_check and 
+            current_time - self._last_personality_check < self.personality_check_interval):
+            return
+        
+        self._last_personality_check = current_time
+        
         try:
-            logger.info(f"🔄 Starting response generation for: {message[:50]}...")
+            if not self._personality_path.exists():
+                return
+                
+            current_mtime = self._personality_path.stat().st_mtime
+            if self._personality_mtime and current_mtime <= self._personality_mtime:
+                return
+                
+            content = self._personality_path.read_text(encoding='utf-8')
+            new_hash = self._hash_personality(content)
             
-            # Refresh model availability for each request
-            current_models = self._get_available_models()
-            if self.model not in current_models and current_models:
-                old_model = self.model
-                self.available_models = current_models
-                self.model = self._select_best_model()
-                logger.info(f"🔄 Model changed: {old_model} → {self.model}")
+            if new_hash != self.personality_hash:
+                self.personality_prompt = content.strip()
+                self.personality_hash = new_hash
+                self._personality_mtime = current_mtime
+                logger.info("personality_reloaded", hash=self.personality_hash)
+                
+        except Exception as e:
+            logger.warning("personality_reload_failed", error=str(e))
+
+    def _hash_personality(self, text: str) -> str:
+        """Generate hash for personality content."""
+        return hashlib.sha256(text.encode('utf-8')).hexdigest()[:16]
+
+    def _classify_intent(self, message: str) -> str:
+        """Classify user intent for model selection."""
+        message_lower = message.lower()
+        
+        creative_keywords = {'write', 'create', 'story', 'poem', 'creative', 'imagine', 'art'}
+        technical_keywords = {'code', 'program', 'debug', 'fix', 'technical', 'algorithm'}
+        
+        if any(keyword in message_lower for keyword in creative_keywords):
+            return 'creative'
+        elif any(keyword in message_lower for keyword in technical_keywords):
+            return 'technical'
+        
+        return 'concise'
+
+    def _choose_context_model(self, message: str) -> str:
+        """Choose optimal model based on context."""
+        if not self.auto_model_enabled:
+            return self.model
+        
+        intent = self._classify_intent(message)
+        
+        # Model preferences by intent
+        preferences = {
+            'creative': ['openhermes', 'mistral', 'llama'],
+            'technical': ['mistral', 'openhermes', 'llama'],
+            'concise': ['mistral', 'openhermes']
+        }
+        
+        for preferred in preferences.get(intent, ['mistral']):
+            for model in self.available_models:
+                if preferred in model.lower() and model not in self.failed_models:
+                    return model
+        
+        return self.model
+
+    async def generate_response(self, message: str, history: Optional[List[ChatMessage]] = None) -> Dict[str, Any]:
+        """Generate AI response with performance tracking."""
+        start_time = time.time()
+        
+        try:
+            self._maybe_reload_personality()
+            selected_model = self._choose_context_model(message)
             
-            # Build conversation context with simplified personality prompt
-            personality_summary = """You are Spectra, an emotionally intelligent AI assistant for Richie. 
-            You are empathetic, creative, supportive, and focus on music, healing, and emotional connection. 
-            Respond with warmth and genuine care. Use emojis naturally."""
-            
-            conversation = [{"role": "system", "content": personality_summary}]
+            # Build conversation context
+            messages = [{"role": "system", "content": self.personality_prompt}]
             
             if history:
-                for msg in history[-5:]:  # Keep last 5 messages to prevent token overflow
-                    if msg.content.strip():
-                        conversation.append({
-                            "role": msg.role,
-                            "content": msg.content
-                        })
+                for msg in history[-10:]:  # Limit context window
+                    messages.append({"role": msg.role, "content": msg.content})
             
-            conversation.append({"role": "user", "content": message})
+            messages.append({"role": "user", "content": message})
             
-            logger.info(f"💭 Conversation context: {len(conversation)} messages")
+            # Generate response
+            client = ollama.Client(host=self.ollama_host, timeout=self.ollama_timeout)
+            response = await asyncio.to_thread(
+                client.chat,
+                model=selected_model,
+                messages=messages,
+                options={
+                    "temperature": 0.7,
+                    "top_p": 0.9,
+                    "max_tokens": 2048,
+                    "stop": ["Human:", "User:"]
+                }
+            )
             
-            # Decide request-scoped model (contextual) but allow fallback retries
-            request_model = self._choose_context_model(message)
-            attempt_models = [request_model]
-            # If contextual pick differs from persistent model, allow persistent model as a fallback (unless same)
-            if self.model not in attempt_models:
-                attempt_models.append(self.model)
-            # Add decreasing capability order as last resort
-            for m in self._ranked_models('concise'):
-                if m not in attempt_models:
-                    attempt_models.append(m)
-
-            last_error = None
-            response = None
-            for idx, model_name in enumerate(attempt_models):
-                try:
-                    logger.info(f"🤖 Attempt {idx+1}/{len(attempt_models)} with model: {model_name}")
-                    response = ollama.chat(
-                        model=model_name,
-                        messages=conversation,
-                        stream=False,
-                        options={
-                            "temperature": 0.7,
-                            "top_p": 0.9,
-                            "num_predict": 512
-                        }
-                    )
-                    # Persist chosen model if successful and different
-                    if model_name != self.model:
-                        logger.info(f"✅ Updating active model to {model_name} after success")
-                        self.model = model_name
-                    break
-                except Exception as inner_e:
-                    err_text = str(inner_e)
-                    last_error = inner_e
-                    logger.warning(f"⚠️ Model {model_name} failed: {err_text}")
-                    # Mark memory related failures so we deprioritize model for future
-                    if 'memory' in err_text.lower() or 'terminated' in err_text.lower():
-                        self.failed_models.add(model_name)
-                        logger.warning(f"📉 Marking model '{model_name}' as resource-failed")
-                    continue
-
-            if response is None:
-                raise last_error if last_error else RuntimeError("No model produced a response")
+            processing_time = time.time() - start_time
             
-            logger.info("✅ Response generated successfully")
+            # Update metrics
+            self.request_count += 1
+            self.total_processing_time += processing_time
+            
+            # Remove from failed models if successful
+            self.failed_models.discard(selected_model)
+            
+            logger.info(
+                "response_generated",
+                model=selected_model,
+                processing_time=processing_time,
+                message_length=len(message),
+                response_length=len(response['message']['content'])
+            )
             
             return {
                 "response": response['message']['content'],
-                "model_used": response.get('model', self.model),
-                "status": "success",
-                "timestamp": datetime.now().isoformat()
+                "model": selected_model,
+                "model_used": selected_model,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "processing_time": processing_time
             }
             
         except Exception as e:
-            logger.error(f"❌ Error generating response: {e}")
-            return {
-                "response": f"I'm experiencing technical difficulties right now. Error: {str(e)} 💜",
-                "model_used": self.model,
-                "status": "error",
-                "timestamp": datetime.now().isoformat()
-            }
+            processing_time = time.time() - start_time
+            
+            # Mark model as failed for resource/memory errors
+            error_str = str(e).lower()
+            if any(keyword in error_str for keyword in ('resource', 'memory', 'timeout', 'overload')):
+                self.failed_models.add(selected_model)
+                logger.warning("model_marked_failed", model=selected_model, error=str(e))
+            
+            logger.error(
+                "response_generation_failed",
+                model=selected_model,
+                error=str(e),
+                processing_time=processing_time
+            )
+            
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "status": "error",
+                    "message": "Failed to generate response",
+                    "error": str(e),
+                    "model": selected_model,
+                    "processing_time": processing_time
+                }
+            )
 
-# Initialize Spectra AI
+    def metrics(self) -> Dict[str, Any]:
+        """Get comprehensive system metrics."""
+        avg_processing_time = (
+            self.total_processing_time / self.request_count 
+            if self.request_count > 0 else 0.0
+        )
+        
+        return {
+            "active_model": self.model,
+            "preferred_model": self.preferred_model,
+            "available_models": self.available_models,
+            "failed_models": sorted(self.failed_models),
+            "auto_model_enabled": self.auto_model_enabled,
+            "personality_hash": self.personality_hash,
+            "request_count": self.request_count,
+            "avg_processing_time": round(avg_processing_time, 3),
+            "cache_ttl": self.model_cache_ttl,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
+    def toggle_auto_model(self, enabled: Optional[bool] = None) -> bool:
+        """Toggle auto model selection."""
+        if enabled is not None:
+            self.auto_model_enabled = enabled
+        else:
+            self.auto_model_enabled = not self.auto_model_enabled
+        return self.auto_model_enabled
+
 spectra = SpectraAI()
 
-# API Routes
-@app.get("/", response_model=Dict[str, Any])
+app = FastAPI(
+    title="Spectra AI API",
+    description="Emotionally intelligent AI assistant backend",
+    version="2.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
+
+allowed_origins = [o.strip() for o in os.getenv('ALLOWED_ORIGINS','http://localhost:3000').split(',') if o.strip()]
+app.add_middleware(CORSMiddleware, allow_origins=allowed_origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"],)
+
+@app.get('/', response_model=Dict[str, Any])
 async def root():
     """API info endpoint"""
     return {
         "service": "Spectra AI Backend API",
         "status": "running",
-        "timestamp": datetime.now().isoformat(),
-        "frontend_url": "http://localhost:3000",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "frontend_url": f"http://localhost:3000",
         "model": spectra.model,
         "available_models": spectra.available_models,
-        "endpoints": {
-            "/api/status": "GET - API status",
-            "/api/chat": "POST - Chat with Spectra AI",
-            "/api/health": "GET - Health check"
-        }
+        "docs": "/docs",
+        "health": "/health"
     }
 
-@app.get("/api/health", response_model=Dict[str, str])
-async def health():
-    """Quick health check endpoint"""
-    return {
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "service": "Spectra AI"
-    }
+@app.get('/health')
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat(), "personality_hash": spectra.personality_hash}
 
-@app.get("/api/status", response_model=StatusResponse)
-async def status():
-    """Dynamic status endpoint with real-time model check"""
+@app.get('/api/status', response_model=StatusResponse)
+async def get_status():
+    """Get system status"""
     try:
         current_models = spectra._get_available_models()
         ollama_status = "connected" if current_models else "disconnected"
@@ -411,91 +466,130 @@ async def status():
             ollama_status=ollama_status,
             model=spectra.model,
             available_models=current_models,
-            timestamp=datetime.now().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             host=os.getenv('HOST', '127.0.0.1'),
-            port=int(os.getenv('PORT', 5000))
+            port=int(os.getenv('PORT', 8000))
         )
     except Exception as e:
-        logger.error(f"❌ Status check error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Status check failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
-    """Modern async chat endpoint with comprehensive validation"""
-    try:
-        logger.info(f"💬 Chat request: {request.message[:50]}...")
-        
-        # Generate response
-        result = await spectra.generate_response(request.message, request.history)
-        
-        logger.info("✅ Response sent successfully")
-        return ChatResponse(**result)
-        
-    except ValidationError as e:
-        logger.error(f"❌ Validation error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid request format: {str(e)}"
-        )
-
-@app.get("/api/models", response_model=ModelListResponse)
+@app.get('/api/models', response_model=ModelListResponse)
 async def list_models():
-    """List current and available models."""
     spectra.refresh_models()
     return ModelListResponse(
         current=spectra.model,
         available=spectra.available_models,
         preferred=spectra.preferred_model,
-        timestamp=datetime.now().isoformat()
+        timestamp=datetime.now(timezone.utc).isoformat()
     )
 
-@app.post("/api/models/select", response_model=ModelSelectResponse)
+@app.post('/api/models/select', response_model=ModelSelectResponse)
 async def select_model(payload: ModelSelectRequest):
-    """Select a different model dynamically without restart."""
-    previous = spectra.model
+    prev = spectra.model
     selected = spectra.set_model(payload.model)
-    msg = "Model updated" if selected != previous else "Model unchanged"
+    msg = 'model updated' if selected != prev else 'model unchanged'
     return ModelSelectResponse(
-        status="success",
+        status='ok',
         selected=selected,
-        previous=previous,
+        previous=prev,
         available=spectra.available_models,
         message=msg,
-        timestamp=datetime.now().isoformat()
+        timestamp=datetime.now(timezone.utc).isoformat()
     )
+
+@app.post('/api/models/refresh', response_model=ModelListResponse)
+async def refresh_models_endpoint():
+    """Force a refresh of the model list (dynamic, no static caching)."""
+    spectra.refresh_models()
+    return ModelListResponse(
+        current=spectra.model,
+        available=spectra.available_models,
+        preferred=spectra.preferred_model,
+        timestamp=datetime.now(timezone.utc).isoformat()
+    )
+
+@app.post('/api/chat', response_model=ChatResponse)
+async def chat_endpoint(chat_request: ChatRequest):
+    """Chat with Spectra AI"""
+    try:
+        logger.info("chat_request", preview=chat_request.message[:50], history=len(chat_request.history))
+        result = await spectra.generate_response(chat_request.message, chat_request.history)
+        return ChatResponse.build(
+            response=result["response"],
+            model=result["model"],
+            processing_time=result["processing_time"],
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.error("chat_error", error=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "response": "I'm having trouble processing your message right now. Please try again. 💜",
+                "status": "error",
+                "error": str(e),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        )
+
+@app.get('/api/metrics', response_model=Dict[str, Any])
+async def metrics_endpoint():
+    return spectra.metrics()
+
+@app.post('/api/auto-model', response_model=Dict[str, Any])
+async def toggle_auto_model(req: ToggleAutoModelRequest):
+    new_value = spectra.toggle_auto_model(req.enabled)
+    return {"auto_model_enabled": new_value, "timestamp": datetime.now(timezone.utc).isoformat()}
+
+@app.get('/api/personality/hash', response_model=Dict[str,str])
+async def personality_hash():
+    return {"personality_hash": spectra.personality_hash}
+
+@app.post('/api/personality/reload', response_model=Dict[str,str])
+async def personality_reload():
+    """Force reload of personality file (if changed)."""
+    before = spectra.personality_hash
+    spectra._maybe_reload_personality()  # noqa: SLF001 (intentional internal call)
+    changed = before != spectra.personality_hash
+    return {"personality_hash": spectra.personality_hash, "changed": str(changed).lower()}
+
+@app.get('/api/debug/state', response_model=Dict[str, Any])
+async def debug_state():
+    """Debug snapshot (no static caches – all values are current)."""
+    spectra.refresh_models()
+    spectra._maybe_reload_personality()  # noqa: SLF001
+    base = spectra.metrics()
+    base.update({
+        "auto_model_enabled": spectra.auto_model_enabled,
+        "failed_models_count": len(spectra.failed_models),
+        "preferred_model": spectra.preferred_model,
+    })
+    return base
 
 # Exception handlers
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc):
     return JSONResponse(
         status_code=404,
-        content={"error": "Endpoint not found", "timestamp": datetime.now().isoformat()}
+    content={"error": "Endpoint not found", "timestamp": datetime.now(timezone.utc).isoformat()}
     )
 
 @app.exception_handler(500)
 async def internal_error_handler(request: Request, exc):
     return JSONResponse(
         status_code=500,
-        content={"error": "Internal server error", "timestamp": datetime.now().isoformat()}
+    content={"error": "Internal server error", "timestamp": datetime.now(timezone.utc).isoformat()}
     )
 
 if __name__ == '__main__':
-    import uvicorn
-    
     HOST = os.getenv('HOST', '127.0.0.1')
     PORT = int(os.getenv('PORT', 5000))
     
-    logger.info(f"🚀 Starting Spectra AI FastAPI on {HOST}:{PORT}")
-    logger.info(f"🤖 AI Model: {spectra.model}")
-    logger.info(f"📋 Available Models: {spectra.available_models}")
+    logger.info("startup", host=HOST, port=PORT, model=spectra.model, available_models=spectra.available_models, log_format=os.getenv('SPECTRA_LOG_FORMAT', 'json'))
     
     uvicorn.run(
         "main:app",
         host=HOST,
         port=PORT,
-        reload=os.getenv('FASTAPI_RELOAD', 'True').lower() == 'true',
+        reload=os.getenv('ENVIRONMENT') == 'development',
         log_level="info"
     )

@@ -54,9 +54,15 @@ else
   echo "🤖 Ollama already running"
 fi
 
-# Start FastAPI backend
-echo "⚡ Starting FastAPI backend (port ${PORT:-5000})"
-(python main.py >/dev/null 2>&1 &) 
+# Start FastAPI backend (gunicorn in production, uvicorn reload in dev)
+BACKEND_PORT="${PORT:-5000}"
+if [ "${ENVIRONMENT:-development}" = "production" ]; then
+  echo "⚡ Starting FastAPI backend (gunicorn) on port $BACKEND_PORT"
+  (gunicorn main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:"$BACKEND_PORT" --workers 2 --timeout 120 >/dev/null 2>&1 &)
+else
+  echo "⚡ Starting FastAPI backend (uvicorn reload) on port $BACKEND_PORT"
+  (python -m uvicorn main:app --host 0.0.0.0 --port "$BACKEND_PORT" --reload >/dev/null 2>&1 &)
+fi
 
 # Start React frontend
 echo "⚛️ Starting React frontend (port 3000)"

@@ -1,11 +1,12 @@
 # Spectra AI - Emotionally Intelligent Assistant
 
+> Professional, emotionally intelligent AI platform with dynamic model selection, structured logging, live personality reloading, and production-ready FastAPI backend.
+
 ## 🌟 About Spectra
 
 Spectra is an emotionally intelligent AI assistant designed to help with expression through music, conversation, healing, and creativity. Built specifically for Richie (Richard Jacob Olejniczak), Spectra provides a deeply personal and empathetic AI companion experience.
 
-Here's a PDF setup guide as well.
-https://drive.google.com/file/d/1dWWR8l-LcfpB5ljmEDokUWmQIpomlP3R/view?usp=drivesdk
+Here's a PDF setup guide as well: [Setup Guide (Google Drive)](https://drive.google.com/file/d/1dWWR8l-LcfpB5ljmEDokUWmQIpomlP3R/view?usp=drivesdk)
 
 ## 🚀 Quick Start (Spectra AI v2)
 
@@ -46,7 +47,7 @@ Stop services:
 
 1. **Install Ollama:**
 
-   - Download from: https://ollama.ai/download
+   - Download from: <https://ollama.ai/download>
    - Or: `winget install Ollama.Ollama` (Windows)
 
 2. **Pull AI models:**
@@ -78,13 +79,13 @@ Stop services:
 
 ### Running Spectra (v2 Dynamic Model Switching)
 
-**Option 1: Using batch files (Windows)**
+#### Option 1: Using batch files (Windows)
 
 - Start Ollama: `ollama serve`
 - `start-backend.bat` - Starts the Python backend
 - `start-frontend.bat` - Starts the React frontend
 
-**Option 2: Manual**
+#### Option 2: Manual
 
 ```bash
 # Terminal 1 - Ollama
@@ -100,12 +101,76 @@ npm run dev
 
 **Then open:** `http://localhost:3000`
 
-### What’s New in v2
-- FastAPI primary backend (Flask legacy still present)
-- Dynamic lightweight model fallback & context-based auto model selection
-- Endpoints: /api/models, /api/models/select
-- Auto-switch toggle via env var SPECTRA_AUTO_MODEL=true|false
-- Smaller test model support (qwen2:0.5b) for low-memory environments
+### What’s New in v2 (Professional Core)
+
+- FastAPI is now the authoritative backend (Flask stub retained only for legacy compatibility)
+- Context-aware auto model selection (creative / technical / concise intent classification)
+- Structured logging using `structlog` (JSON or console formats via `SPECTRA_LOG_FORMAT`)
+- Performance metrics: request counts, average latency, failed model tracking
+- Personality prompt hot-reload (rate-limited; hash exposed for integrity)
+- Backward compatible response schema (`model` + `model_used` fields)
+- UTC, timezone-aware timestamps everywhere
+
+### Additional Runtime Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/status` | GET | Health + live model availability summary |
+| `/api/models` | GET | Current, preferred & available models (cached with TTL) |
+| `/api/models/select` | POST | Change active model `{ "model": "mistral:7b" }` |
+| `/api/models/refresh` | POST | Force refresh model list (ignores cache) |
+| `/api/chat` | POST | Chat `{ message, history[] }` returns response & timing |
+| `/api/metrics` | GET | Telemetry: performance, failed models, personality hash |
+| `/api/auto-model` | POST | Toggle or set contextual auto selection `{ "enabled": true }` |
+| `/api/personality/hash` | GET | Current personality SHA-256 short hash |
+| `/api/personality/reload` | POST | Force personality reload (rate limits still apply) |
+| `/api/debug/state` | GET | Composite debug snapshot (metrics + config) |
+
+### Key Environment Variables
+
+```env
+# Core runtime
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=openhermes:7b-mistral-v2.5-q4_K_M
+SPECTRA_AUTO_MODEL=true
+ALLOWED_ORIGINS=http://localhost:3000
+
+# Logging & diagnostics
+SPECTRA_LOG_FORMAT=json            # json | console
+SPECTRA_LOG_LEVEL=info
+
+# Caching & reload intervals (seconds)
+MODEL_CACHE_TTL=300                # Model list cache lifespan
+PERSONALITY_CHECK_INTERVAL=5       # Min seconds between personality file checks
+
+# Server
+HOST=127.0.0.1
+PORT=8000
+ENVIRONMENT=development            # Enables FastAPI reload if using uvicorn directly
+```
+
+### Chat Response Schema (v2+)
+
+```json
+{
+   "response": "string",              # Spectra's reply
+   "model": "mistral:7b",            # Active model chosen
+   "model_used": "mistral:7b",       # Backward-compatible alias (will mirror model)
+   "timestamp": "2025-08-09T19:20:05.123456+00:00",  # UTC ISO 8601
+   "processing_time": 0.842           # Seconds
+}
+```
+
+All timestamps are timezone-aware UTC (`+00:00`).
+
+### Frontend Enhancements
+
+- Live model selector + auto-mode toggle
+- Metrics panel (active / failed / hash / avg latency)
+- Typing indicator & smooth streaming-friendly UI shell
+- UTC timestamp presentation readiness
+
+If you do not see stats, ensure backend is running and CORS origin matches `ALLOWED_ORIGINS`.
 
 ### Tabnine Integration (AI Code Completion)
 
@@ -127,19 +192,19 @@ If you prefer not to use Tabnine, simply ignore or remove the extension recommen
 
 ### Stopping Spectra
 
-**Option 1: Quick Stop (Fastest)**
+#### Option 1: Quick Stop (Fastest)
 
 ```bash
 quick-stop.bat
 ```
 
-**Option 2: Graceful Shutdown (Recommended)**
+#### Option 2: Graceful Shutdown (Recommended)
 
 ```bash
 stop-all.bat
 ```
 
-**Option 3: Smart Shutdown (Tries graceful first, then force)**
+#### Option 3: Smart Shutdown (Tries graceful first, then force)
 
 ```bash
 smart-stop.bat
@@ -150,53 +215,26 @@ smart-stop.bat
 - Press `Ctrl+C` in each terminal running the services
 - Or use Task Manager to end Python, Node.js, and Ollama processes
 
-## 🏗️ Project Structure
+## 🏗️ Current Project Structure (Simplified)
 
+```text
+.
+├── main.py                 # FastAPI backend (authoritative)
+├── app.py                  # Legacy Flask stub (deprecated)
+├── spectra_prompt.md       # Personality (hot-reloaded & hashed)
+├── requirements.txt        # Dynamic dependency list
+├── frontend/               # React + TS + Tailwind UI
+│   └── src/
+│       ├── api/            # API utilities
+│       ├── components/     # UI components
+│       └── App.tsx
+├── tests/                  # Pytest suite (API + error logic)
+├── .github/                # Copilot / workflow configuration
+├── README.md               # Developer documentation
+├── README_PRODUCTION.md    # Production snapshot doc
+├── CHANGELOG.md            # Release notes (added v2+)
+└── SYSTEM_STATUS.md        # Historical ops snapshot
 ```
-spectra-ai/
-├── app.py                 # Flask backend API
-├── requirements.txt       # Python dependencies
-├── .env.example          # Environment variables template
-├── frontend/             # React + TypeScript + Tailwind
-│   ├── src/
-│   │   ├── App.tsx       # Main React app
-│   │   ├── components/   # React components
-│   │   └── api/          # API utilities
-│   ├── package.json      # Node.js dependencies
-│   └── tailwind.config.js # Tailwind CSS config
-├── .vscode/              # VS Code workspace settings
-├── start-backend.bat     # Backend startup script
-├── start-frontend.bat    # Frontend startup script
-├── start-ollama.bat      # Ollama startup script
-├── stop-all.bat          # Graceful shutdown
-├── quick-stop.bat        # Fast shutdown
-├── smart-stop.bat        # Smart shutdown
-└── test_integration.html # System testing interface
-```
-
-Spectra AI/
-├── app.py # Main Flask application (Ollama integration)
-├── requirements.txt # Python dependencies (latest versions)
-├── .env # Environment variables (Ollama model config)
-├── spectra_prompt.md # Spectra's personality definition
-├── setup.bat/.sh # Automated setup scripts
-├── start-backend.bat # Quick backend launcher
-├── start-frontend.bat # Quick frontend launcher
-├── frontend/ # React + TypeScript + Tailwind frontend
-│ ├── src/
-│ │ ├── App.tsx # Main React app
-│ │ ├── components/ # React components
-│ │ ├── api/ # API integration
-│ │ └── types.ts # TypeScript types
-│ ├── package.json # Frontend dependencies
-│ └── vite.config.ts # Vite configuration
-├── templates/ # Flask templates (fallback UI)
-├── .vscode/ # VS Code settings (Pylance, formatting)
-├── .github/ # GitHub configuration
-│ └── copilot-instructions.md
-└── README.md # This file
-
-````
 
 ## 🤖 AI Configuration
 
@@ -233,21 +271,28 @@ Spectra's personality and traits are defined in `spectra_prompt.md`. This file c
 - Update frontend files in `static/` and `templates/` for UI changes
 - Add new endpoints in `app.py` for additional features
 
-## 🌈 Features (Planned)
+## 🌈 Feature Roadmap
 
-- [x] Basic chat interface
-- [x] Emotional intelligence and empathy
-- [ ] Music generation integration
-- [ ] Mood tracking
-- [ ] Creative writing tools
-- [ ] Healing and mindfulness features
+- [x] Dynamic model selection (contextual)
+- [x] Structured logging
+- [x] UTC timestamps everywhere
+- [x] Personality hot-reload & integrity hash
+- [x] Performance metrics endpoint
+- [ ] Streaming responses
+- [ ] Optional memory layer (ephemeral / opt-in, privacy aware)
 - [ ] Voice interaction
-- [ ] Memory and conversation history
+- [ ] Music & mood augmentation modules
+- [ ] Creative tooling extensions (lyric & chord helpers)
 
 ## 🤝 Contributing
 
-This is a personal project for Richie, but suggestions and improvements are welcome!
+See `CONTRIBUTING.md` for guidelines (code style, tests, logging, dynamic compliance – no static model data). External contributions should include:
 
-## 📝 License
+1. Focused PR
+2. Updated/added test(s)
+3. CHANGELOG.md entry (Unreleased section)
+4. No introduction of persistent state or static dataset artifacts
 
-Private project - All rights reserved.
+## �️ License & Conduct
+
+Private project – All rights reserved. See `CODE_OF_CONDUCT.md` for interaction standards.
