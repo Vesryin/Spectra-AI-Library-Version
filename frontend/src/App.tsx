@@ -53,7 +53,7 @@ const App: React.FC = () => {
       timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    setMessages((prev: any) => [...prev, userMessage]);
     setInputMessage('');
     setIsTyping(true);
 
@@ -67,7 +67,7 @@ const App: React.FC = () => {
         timestamp: new Date(),
       };
 
-      setMessages(prev => [...prev, spectraMessage]);
+      setMessages((prev: any) => [...prev, spectraMessage]);
     } catch (error) {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -77,7 +77,7 @@ const App: React.FC = () => {
         isError: true,
       };
       
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages((prev: any) => [...prev, errorMessage]);
     } finally {
       setIsTyping(false);
     }
@@ -100,7 +100,7 @@ const App: React.FC = () => {
   const handleToggleAutoModel = useCallback(async () => {
     try {
       const next = await toggleAutoModel();
-      setMetrics(prev => prev ? { ...prev, auto_model_enabled: next.auto_model_enabled } : prev);
+      setMetrics((prev: any) => prev ? { ...prev, auto_model_enabled: next.auto_model_enabled } : prev);
     } catch (err) {
       console.error('Toggle auto model failed', err);
     }

@@ -20,8 +20,8 @@ const api = axios.create({
 
 // Add response interceptor for better error handling
 api.interceptors.response.use(
-  (response) => response,
-  (error) => {
+  (response: any) => response,
+  (error: any) => {
     console.error("API Error:", error);
     if (error.code === "ECONNABORTED") {
       throw new Error(
