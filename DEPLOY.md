@@ -40,7 +40,7 @@
 
 ## 🔗 URLs After Deployment
 
-- **Railway**: `https://your-app-name.up.railway.app`
+- **Railway**: `https://spectra-ai-library-version-production.up.railway.app`
 - **Vercel**: `https://your-project-name.vercel.app`
 
 ## 🎯 Test Your Deployment
