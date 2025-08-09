@@ -14,6 +14,10 @@ from datetime import datetime, timezone  # updated to include timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
 import ollama
 import structlog
 import uvicorn
@@ -273,6 +277,12 @@ class SpectraAI:
         self.model_cache_ttl = int(os.getenv('MODEL_CACHE_TTL', '300'))
         self.personality_check_interval = int(os.getenv('PERSONALITY_CHECK_INTERVAL', '5'))
         
+        # Runtime state (initialize early)
+        self.failed_models: set[str] = set()
+        self.auto_model_enabled = os.getenv('SPECTRA_AUTO_MODEL', 'true').lower() in ('1', 'true', 'yes', 'on')
+        self.request_count = 0
+        self.total_processing_time = 0.0
+        
         # Initialize AI providers
         self.providers: Dict[str, AIProvider] = {
             'ollama': OllamaProvider(),
@@ -296,12 +306,6 @@ class SpectraAI:
         self._last_personality_check: Optional[float] = None
         self.personality_prompt = self._load_personality()
         self.personality_hash = self._hash_personality(self.personality_prompt)
-        
-        # Runtime state
-        self.failed_models: set[str] = set()
-        self.auto_model_enabled = os.getenv('SPECTRA_AUTO_MODEL', 'true').lower() in ('1', 'true', 'yes', 'on')
-        self.request_count = 0
-        self.total_processing_time = 0.0
         
         logger.info(
             "spectra_initialized",
