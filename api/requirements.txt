@@ -1,0 +1,7 @@
+# Minimal requirements for Vercel deployment
+fastapi
+python-dotenv
+structlog
+openai
+anthropic
+requests
