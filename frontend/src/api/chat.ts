@@ -11,7 +11,7 @@ import {
 
 // Dynamic API configuration
 const api = axios.create({
-  baseURL: "/api",
+  baseURL: "https://spectra-ai-library-version-production.up.railway.app/api",
   timeout: 120000, // Increased timeout to 2 minutes for AI responses
   headers: {
     "Content-Type": "application/json",
