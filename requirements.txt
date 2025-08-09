@@ -12,6 +12,7 @@ ollama
 openai
 anthropic
 requests
+aiohttp
 
 # Testing (only if needed)
 pytest
