@@ -7,8 +7,11 @@ pydantic
 python-dotenv
 structlog
 
-# AI Models
+# AI Models & Providers
 ollama
+openai
+anthropic
+requests
 
 # Testing (only if needed)
 pytest
