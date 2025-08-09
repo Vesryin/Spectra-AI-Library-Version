@@ -512,7 +512,12 @@ async def refresh_models_endpoint():
 async def chat_endpoint(chat_request: ChatRequest):
     """Chat with Spectra AI"""
     try:
-        logger.info("chat_request", preview=chat_request.message[:50], history=len(chat_request.history))
+        # history is Optional[List[ChatMessage]] (default_factory ensures list), guard for type checkers
+        logger.info(
+            "chat_request",
+            preview=chat_request.message[:50],
+            history=len(chat_request.history or []),
+        )
         result = await spectra.generate_response(chat_request.message, chat_request.history)
         return ChatResponse.build(
             response=result["response"],
