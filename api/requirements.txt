@@ -1,4 +1,4 @@
-# Minimal requirements for Vercel deployment
+# Minimal requirements for Vercel deployment - ALL DYNAMIC VERSIONS
 fastapi
 python-dotenv
 structlog
