@@ -1,0 +1,12 @@
+# requirements.in
+fastapi
+uvicorn
+httpx
+pytest
+pytest-asyncio
+structlog
+python-dotenv
+ollama
+openai
+anthropic
+pydantic
