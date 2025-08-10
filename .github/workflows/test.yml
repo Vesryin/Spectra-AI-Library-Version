@@ -1,4 +1,4 @@
-name: Run Spectra AI Tests
+name: Spectra AI Backend Tests
 
 on:
   push:
@@ -26,50 +26,14 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pytest
-
-      - name: Run pytest
-        run: pytest
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: pytest-results
-          path: ./pytest-report.xml
-
-name: Spectra AI Backend Tests
-
-on:
-  push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies (unpinned)
-        run: |
-          python -m pip install --upgrade pip
           pip install -r requirements.in
+          pip install pytest
 
       - name: Run pytest
         run: |
           pytest --maxfail=1 --disable-warnings -q
 
-      - name: Upload test results (optional)
+      - name: Upload pytest report on failure
         if: failure()
         uses: actions/upload-artifact@v3
         with:
