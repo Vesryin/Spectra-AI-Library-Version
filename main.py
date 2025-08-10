@@ -727,8 +727,9 @@ app = FastAPI(
 
 from fastapi.middleware.cors import CORSMiddleware
 
-allowed_origins = [
+allowed_origins = os.getenv('CORS_ORIGINS', '').split(',') or [
     "https://spectra-ai-vercel.vercel.app",  # Your frontend URL
+    "http://localhost:3000",  # Local development
 ]
 
 app.add_middleware(
