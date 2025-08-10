@@ -809,7 +809,7 @@ async def internal_error_handler(request: Request, exc):
 
 if __name__ == '__main__':
     HOST = os.getenv('HOST', '0.0.0.0')  # Railway needs 0.0.0.0
-    PORT = int(os.getenv('PORT', 5000))
+    PORT = int(os.getenv('PORT', 3000))
     
     print(f"🚀 Starting Spectra AI on {HOST}:{PORT}")
     print(f"🔧 Environment: {os.getenv('ENVIRONMENT', 'production')}")
