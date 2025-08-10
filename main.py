@@ -642,8 +642,19 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-allowed_origins = [o.strip() for o in os.getenv('ALLOWED_ORIGINS','http://localhost:3000').split(',') if o.strip()]
-app.add_middleware(CORSMiddleware, allow_origins=allowed_origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"],)
+from fastapi.middleware.cors import CORSMiddleware
+
+allowed_origins = [
+    "https://spectra-ai-vercel.vercel.app",  # Your frontend URL
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+) 
 
 @app.get('/', response_model=Dict[str, Any])
 async def root():
