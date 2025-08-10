@@ -690,7 +690,7 @@ async def get_status():
             available_models=current_models,
             timestamp=datetime.now(timezone.utc).isoformat(),
             host=os.getenv('HOST', '127.0.0.1'),
-            port=int(os.getenv('PORT', 5000))
+            port=int(os.getenv('PORT', 8000))
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -809,7 +809,7 @@ async def internal_error_handler(request: Request, exc):
 
 if __name__ == '__main__':
     HOST = os.getenv('HOST', '0.0.0.0')  # Railway needs 0.0.0.0
-    PORT = int(os.getenv('PORT', 3000))
+    PORT = int(os.getenv('PORT', 8000))
     
     print(f"🚀 Starting Spectra AI on {HOST}:{PORT}")
     print(f"🔧 Environment: {os.getenv('ENVIRONMENT', 'production')}")
