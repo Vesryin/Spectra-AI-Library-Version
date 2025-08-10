@@ -25,7 +25,7 @@ async def test_deployment(base_url: str) -> Dict[str, Any]:
     async with aiohttp.ClientSession() as session:
         try:
             # Test health check
-            print("🔍 Testing health check...")
+            print(f"🔍 Testing health check at {base_url} ...")
             async with session.get(f"{base_url}/") as response:
                 if response.status == 200:
                     results["health_check"] = True
@@ -40,7 +40,7 @@ async def test_deployment(base_url: str) -> Dict[str, Any]:
         
         try:
             # Test status endpoint
-            print("🔍 Testing status endpoint...")
+            print(f"🔍 Testing status endpoint at {base_url}/api/status ...")
             async with session.get(f"{base_url}/api/status") as response:
                 if response.status == 200:
                     results["status_endpoint"] = True
@@ -57,7 +57,7 @@ async def test_deployment(base_url: str) -> Dict[str, Any]:
         
         try:
             # Test chat endpoint
-            print("🔍 Testing chat endpoint...")
+            print(f"🔍 Testing chat endpoint at {base_url}/api/chat ...")
             chat_payload = {
                 "message": "Hello! Quick deployment test - just say 'working' if you receive this."
             }
@@ -88,39 +88,47 @@ async def main():
     print("🧪 Spectra AI Deployment Verification")
     print("=" * 50)
     
-    # You can test locally first
+    # Test local deployment
     local_url = "http://127.0.0.1:5000"
     print(f"\n📍 Testing LOCAL deployment: {local_url}")
     local_results = await test_deployment(local_url)
     
-    # Test Railway deployment (replace with your actual Railway URL)
-    railway_url = input("\n🌐 Enter your Railway URL (or press Enter to skip): ").strip()
+    # Test Railway deployment
+    railway_url = "https://spectra-ai-library-version-production.up.railway.app"
+    print(f"\n📍 Testing RAILWAY deployment: {railway_url}")
+    railway_results = await test_deployment(railway_url)
     
-    if railway_url:
-        print(f"\n📍 Testing RAILWAY deployment: {railway_url}")
-        railway_results = await test_deployment(railway_url)
-        
-        print("\n" + "=" * 50)
-        print("📊 DEPLOYMENT SUMMARY")
-        print("=" * 50)
-        
-        print(f"\nLOCAL ({local_url}):")
-        print(f"  Health: {'✅' if local_results['health_check'] else '❌'}")
-        print(f"  Status: {'✅' if local_results['status_endpoint'] else '❌'}")
-        print(f"  Chat: {'✅' if local_results['chat_test'] else '❌'}")
-        
-        print(f"\nRAILWAY ({railway_url}):")
-        print(f"  Health: {'✅' if railway_results['health_check'] else '❌'}")
-        print(f"  Status: {'✅' if railway_results['status_endpoint'] else '❌'}")
-        print(f"  Chat: {'✅' if railway_results['chat_test'] else '❌'}")
-        
-        if railway_results['errors']:
-            print(f"\n⚠️  Railway Errors:")
-            for error in railway_results['errors']:
-                print(f"    - {error}")
+    # Test Vercel deployment
+    vercel_url = "https://spectraai-vercel.vercel.app"
+    print(f"\n📍 Testing VERCEL deployment: {vercel_url}")
+    vercel_results = await test_deployment(vercel_url)
     
-    else:
-        print("\n📋 Local test completed. Deploy to Railway and run this script again!")
-
+    print("\n" + "=" * 50)
+    print("📊 DEPLOYMENT SUMMARY")
+    print("=" * 50)
+    
+    print(f"\nLOCAL ({local_url}):")
+    print(f"  Health: {'✅' if local_results['health_check'] else '❌'}")
+    print(f"  Status: {'✅' if local_results['status_endpoint'] else '❌'}")
+    print(f"  Chat: {'✅' if local_results['chat_test'] else '❌'}")
+    
+    print(f"\nRAILWAY ({railway_url}):")
+    print(f"  Health: {'✅' if railway_results['health_check'] else '❌'}")
+    print(f"  Status: {'✅' if railway_results['status_endpoint'] else '❌'}")
+    print(f"  Chat: {'✅' if railway_results['chat_test'] else '❌'}")
+    if railway_results['errors']:
+        print(f"\n⚠️  Railway Errors:")
+        for error in railway_results['errors']:
+            print(f"    - {error}")
+    
+    print(f"\nVERCEL ({vercel_url}):")
+    print(f"  Health: {'✅' if vercel_results['health_check'] else '❌'}")
+    print(f"  Status: {'✅' if vercel_results['status_endpoint'] else '❌'}")
+    print(f"  Chat: {'✅' if vercel_results['chat_test'] else '❌'}")
+    if vercel_results['errors']:
+        print(f"\n⚠️  Vercel Errors:")
+        for error in vercel_results['errors']:
+            print(f"    - {error}")
+    
 if __name__ == "__main__":
     asyncio.run(main())
