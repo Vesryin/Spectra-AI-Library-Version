@@ -14,7 +14,7 @@ Here's a PDF setup guide as well: [Setup Guide (Google Drive)](https://drive.goo
 
 - Python 3.8 or higher
 - Node.js 16 or higher
-- Ollama (for local AI models)
+- Hugging Face (for local and cloud AI models)
 
 ### Automatic Setup (Recommended)
 
@@ -34,7 +34,7 @@ chmod +x setup.sh
 After setup you can launch everything with:
 
 ```bash
-./start.sh   # Starts Ollama (if not running), FastAPI backend, and React frontend
+./start.sh   # Starts FastAPI backend and React frontend with Hugging Face models
 ```
 
 Stop services:
@@ -45,16 +45,16 @@ Stop services:
 
 ### Manual Setup
 
-1. **Install Ollama:**
+1. **Setup for Hugging Face models:**
+   
+   - Models will be automatically downloaded on first use
+   - No separate installation needed beyond Python dependencies
 
-   - Download from: <https://ollama.ai/download>
-   - Or: `winget install Ollama.Ollama` (Windows)
+2. **Default models:**
 
-2. **Pull AI models:**
-
-   ```bash
-   ollama pull openhermes:7b-mistral-v2.5-q4_K_M
-   ollama pull mistral:7b
+   ```
+   mistralai/Mistral-7B-Instruct-v0.2 (default model)
+   meta-llama/Llama-2-7b-chat-hf (alternative model)
    ```
 
 3. **Install Python dependencies:**
@@ -81,20 +81,16 @@ Stop services:
 
 #### Option 1: Using batch files (Windows)
 
-- Start Ollama: `ollama serve`
-- `start-backend.bat` - Starts the Python backend
+- `start-backend.bat` - Starts the Python backend with Hugging Face models
 - `start-frontend.bat` - Starts the React frontend
 
 #### Option 2: Manual
 
 ```bash
-# Terminal 1 - Ollama
-ollama serve
-
-# Terminal 2 - Backend
+# Terminal 1 - Backend
 python main.py  # (FastAPI recommended) or python app.py (legacy Flask)
 
-# Terminal 3 - Frontend
+# Terminal 2 - Frontend
 cd frontend
 npm run dev
 ```
@@ -130,8 +126,8 @@ npm run dev
 
 ```env
 # Core runtime
-OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=openhermes:7b-mistral-v2.5-q4_K_M
+HF_MODEL=mistralai/Mistral-7B-Instruct-v0.2
+HF_MODELS=mistralai/Mistral-7B-Instruct-v0.2,meta-llama/Llama-2-7b-chat-hf
 SPECTRA_AUTO_MODEL=true
 ALLOWED_ORIGINS=http://localhost:3000
 
@@ -213,7 +209,7 @@ smart-stop.bat
 **Manual Stop:**
 
 - Press `Ctrl+C` in each terminal running the services
-- Or use Task Manager to end Python, Node.js, and Ollama processes
+- Or use Task Manager to end Python and Node.js processes
 
 ## 🏗️ Current Project Structure (Simplified)
 
@@ -238,21 +234,21 @@ smart-stop.bat
 
 ## 🤖 AI Configuration
 
-### Ollama Models
+### Hugging Face Models
 
-- **Default**: `openhermes:7b-mistral-v2.5-q4_K_M` (optimized for emotional intelligence)
-- **Alternative**: `mistral:7b` (faster responses)
-- **Custom**: Set `OLLAMA_MODEL` in `.env`
+- **Default**: `mistralai/Mistral-7B-Instruct-v0.2` (optimized for emotional intelligence)
+- **Alternative**: `meta-llama/Llama-2-7b-chat-hf` (powerful conversational model)
+- **Custom**: Set `HF_MODEL` in `.env`
 
 ### Model Management
 
-```bash
-ollama list                                    # See installed models
-ollama pull openhermes:7b-mistral-v2.5-q4_K_M # Install Spectra's model
-ollama pull mistral:7b                        # Install alternative model
-ollama rm openhermes:7b-mistral-v2.5-q4_K_M  # Remove Spectra's model
-ollama serve                                  # Start Ollama server
-````
+You can configure additional models by setting the `HF_MODELS` environment variable as a comma-separated list:
+
+```
+HF_MODELS=mistralai/Mistral-7B-Instruct-v0.2,meta-llama/Llama-2-7b-chat-hf,HuggingFaceH4/zephyr-7b-beta
+```
+
+Models will be downloaded automatically when first used and cached for subsequent requests.`
 
 ## 🎭 Spectra's Personality
 
@@ -262,6 +258,7 @@ Spectra's personality and traits are defined in `spectra_prompt.md`. This file c
 
 ### API Providers
 
+- **Hugging Face**: Set `AI_PROVIDER=huggingface` in `.env`
 - **Claude (Anthropic)**: Set `AI_PROVIDER=claude` in `.env`
 - **OpenAI**: Set `AI_PROVIDER=openai` in `.env`
 

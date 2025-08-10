@@ -8,15 +8,21 @@ The format loosely follows Keep a Changelog and adheres to Semantic Versioning w
 
 ### Added
 
-- (none yet)
+- Hugging Face integration for local and cloud-hosted language models
+- Support for multiple Hugging Face models via HF_MODELS environment variable
+- Automatic model caching for improved performance
+- Example .env file with updated configuration options
 
 ### Changed
 
-- (none yet)
+- Replaced Ollama provider with Hugging Face provider
+- Updated model selection preferences for creative, technical, and concise intents
+- Modified documentation to reflect new Hugging Face integration
+- Updated requirements.txt with transformers and torch dependencies
 
-### Fixed
+### Removed
 
-- (none yet)
+- Ollama integration and dependencies
 
 ## [3.0.0-dev] - 2025-08-09
 

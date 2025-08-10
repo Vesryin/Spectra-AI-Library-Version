@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "🌟 Spectra AI – Unified Startup (FastAPI + React + Ollama)"
-echo "========================================================="
+echo "🌟 Spectra AI – Unified Startup (FastAPI + React + Hugging Face)"
+echo "============================================================="
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
@@ -15,9 +15,8 @@ echo "🔍 Checking prerequisites..."
 need python
 need node
 need npm
-need ollama
 if [ "$MISSING" -eq 1 ]; then
-  echo "❌ Install missing prerequisites (Python 3.8+, Node.js 16+, Ollama) and re-run." >&2
+  echo "❌ Install missing prerequisites (Python 3.8+, Node.js 16+) and re-run." >&2
   exit 1
 fi
 echo "✅ All core prerequisites found"
@@ -45,14 +44,8 @@ fi
 popd >/dev/null
 echo "✅ Frontend ready"
 
-# Start Ollama if not running
-if ! pgrep -f "ollama serve" >/dev/null 2>&1; then
-  echo "🤖 Starting Ollama service in background"
-  (nohup ollama serve >/dev/null 2>&1 &) || true
-  sleep 3
-else
-  echo "🤖 Ollama already running"
-fi
+# Hugging Face models will be downloaded on first use
+echo "🤖 Hugging Face models will be automatically downloaded when needed"
 
 # Start FastAPI backend (gunicorn in production, uvicorn reload in dev)
 BACKEND_PORT="${PORT:-5000}"
@@ -72,5 +65,4 @@ echo "\n✅ All services launching. Key URLs:"
 echo "   ⚡ API:           http://localhost:${PORT:-5000}" 
 echo "   📚 API Docs:      http://localhost:${PORT:-5000}/docs" 
 echo "   ⚛️ Frontend:      http://localhost:3000" 
-echo "   🤖 Ollama API:    http://localhost:11434" 
 echo "\n💜 Spectra AI is warming up emotionally and intellectually!"
